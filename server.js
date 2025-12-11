@@ -52,11 +52,17 @@ app.use(express.json()); // To parse JSON bodies
 const menuRoutes = require('./routes/menu');
 const orderRoutes = require('./routes/orders');
 const productsRoutes = require('./routes/products');
+const statsRoutes = require('./routes/stats');
+const branchesRoutes = require('./routes/branches');
+const uploadRoutes = require('./routes/upload');
 const { router: authRoutes, setupDefaultUser } = require('./routes/auth'); 
 
 app.use('/api', menuRoutes);
 app.use('/api', orderRoutes);
 app.use('/api', productsRoutes);
+app.use('/api', statsRoutes);
+app.use('/api', branchesRoutes);
+app.use('/api', uploadRoutes);
 app.use('/api/auth', authRoutes);
 
 
