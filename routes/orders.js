@@ -8,7 +8,7 @@ router.post('/orders', authenticateToken, async (req, res) => {
     const pool = req.app.locals.pool;
     const { items, total } = req.body;
 
-    console.log('📦 Received order:', { items, total }); // Debug log
+    console.log('📦 Received order:', JSON.stringify({ items, total }, null, 2));
 
     const userId = req.user.userId;
 
@@ -29,20 +29,18 @@ router.post('/orders', authenticateToken, async (req, res) => {
         const orderId = orderRes.rows[0].order_id;
         const orderDate = orderRes.rows[0].order_date;
 
-        // 2. Insert Items with proper validation
-        const itemInsertText = 'INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ($1, $2, $3, $4)';
+        // 2. Insert Items - USING unit_price instead of price
+        const itemInsertText = 'INSERT INTO order_items (order_id, product_id, quantity, unit_price) VALUES ($1, $2, $3, $4)';
         
         for (const item of items) {
-            // Extract the numeric product_id (handles both regular and customized products)
+            // Extract numeric product_id
             let productId;
             
             if (typeof item.product_id === 'number') {
                 productId = item.product_id;
             } else if (typeof item.product_id === 'string') {
-                // Try to parse as integer first
                 productId = parseInt(item.product_id);
                 
-                // If that fails, try to extract the number from strings like "7-50%, Normal"
                 if (isNaN(productId)) {
                     const match = item.product_id.match(/^(\d+)/);
                     productId = match ? parseInt(match[1]) : null;
@@ -53,17 +51,19 @@ router.post('/orders', authenticateToken, async (req, res) => {
                 throw new Error(`Invalid product_id: ${item.product_id}`);
             }
 
-            console.log(`✅ Inserting item: product_id=${productId}, qty=${item.quantity}, price=${item.price}`);
+            console.log(`✅ Inserting: product_id=${productId}, qty=${item.quantity}, unit_price=${item.price}`);
 
             await client.query(itemInsertText, [
                 orderId, 
                 productId,
                 item.quantity, 
-                parseFloat(item.price)
+                parseFloat(item.price)  // This maps to unit_price column
             ]);
         }
 
         await client.query('COMMIT');
+
+        console.log(`✅ Order ${orderId} created successfully!`);
 
         res.status(201).json({
             message: 'Order created',
@@ -73,7 +73,7 @@ router.post('/orders', authenticateToken, async (req, res) => {
 
     } catch (error) {
         await client.query('ROLLBACK');
-        console.error('❌ Order Error:', error);
+        console.error('❌ Order Error:', error.message);
         res.status(500).json({ 
             message: 'Failed to create order.',
             error: error.message 
