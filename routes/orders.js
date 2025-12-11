@@ -29,8 +29,8 @@ router.post('/orders', authenticateToken, async (req, res) => {
         const orderId = orderRes.rows[0].order_id;
         const orderDate = orderRes.rows[0].order_date;
 
-        // 2. Insert Items - USING unit_price instead of price
-        const itemInsertText = 'INSERT INTO order_items (order_id, product_id, quantity, unit_price) VALUES ($1, $2, $3, $4)';
+        // 2. Insert Items - INCLUDING item_total calculation
+        const itemInsertText = 'INSERT INTO order_items (order_id, product_id, quantity, unit_price, item_total) VALUES ($1, $2, $3, $4, $5)';
         
         for (const item of items) {
             // Extract numeric product_id
@@ -51,13 +51,17 @@ router.post('/orders', authenticateToken, async (req, res) => {
                 throw new Error(`Invalid product_id: ${item.product_id}`);
             }
 
-            console.log(`✅ Inserting: product_id=${productId}, qty=${item.quantity}, unit_price=${item.price}`);
+            const unitPrice = parseFloat(item.price);
+            const itemTotal = unitPrice * item.quantity;
+
+            console.log(`✅ Inserting: product_id=${productId}, qty=${item.quantity}, unit_price=${unitPrice}, total=${itemTotal}`);
 
             await client.query(itemInsertText, [
                 orderId, 
                 productId,
                 item.quantity, 
-                parseFloat(item.price)  // This maps to unit_price column
+                unitPrice,
+                itemTotal  // Calculate and include item_total
             ]);
         }
 
