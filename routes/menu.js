@@ -1,54 +1,45 @@
 // sayon-backend/routes/menu.js
-
 const express = require('express');
-// 💡 NOTE: We no longer import the pool directly to avoid circular dependency
-const authenticateToken = require('../middleware/auth');
 const router = express.Router();
 
-// GET /api/menu - Requires authentication
-router.get('/menu', authenticateToken, async (req, res) => {
-    
-    // 💡 FIX: Access the pool from app.locals, which was set up in server.js
-    const pool = req.app.locals.pool; 
-    
+// GET /api/menu - Public endpoint for POS
+router.get('/menu', async (req, res) => {
+    const pool = req.app.locals.pool;
     try {
+        // 💡 CRITICAL FIX: Make sure 'options' and 'description' are selected!
         const query = `
-            SELECT
-                c.name AS category_name,
-                p.product_id,
-                p.name AS product_name,
-                p.price,
+            SELECT 
+                p.product_id, 
+                p.name, 
+                p.price, 
+                p.category_id, 
+                p.image_url, 
+                p.is_available,
+                p.options,      -- <--- This was likely missing
                 p.description,
-                p.image_url
+                c.name as category_name
             FROM products p
             JOIN categories c ON p.category_id = c.category_id
-            WHERE p.is_available = TRUE
-            ORDER BY c.sort_order, p.product_id;
+            WHERE p.is_available = true
+            ORDER BY p.category_id, p.product_id
         `;
         
-        // This line caused the error when 'pool' was undefined:
         const { rows } = await pool.query(query);
 
-        // Reformat data for easier frontend consumption (Group by category)
-        const menu = rows.reduce((acc, row) => {
-            const category = row.category_name;
-            if (!acc[category]) {
-                acc[category] = [];
+        // Group by Category for the frontend
+        const menu = {};
+        rows.forEach(item => {
+            if (!menu[item.category_name]) {
+                menu[item.category_name] = [];
             }
-            acc[category].push({
-                product_id: row.product_id,
-                name: row.product_name,
-                price: parseFloat(row.price), // Ensure price is a number
-                description: row.description,
-                image_url: row.image_url
-            });
-            return acc;
-        }, {});
+            menu[item.category_name].push(item);
+        });
 
         res.json(menu);
+
     } catch (error) {
         console.error('Error fetching menu:', error);
-        res.status(500).json({ error: 'Failed to fetch menu data' });
+        res.status(500).json({ error: 'Failed to fetch menu.' });
     }
 });
 

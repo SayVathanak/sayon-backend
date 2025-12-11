@@ -27,15 +27,8 @@ pool.query('SELECT NOW()')
 
 
 // --- 2. Middleware setup (Secure CORS) ---
-// const allowedOrigins = [
-//   'http://localhost:5173',
-//   process.env.FRONTEND_URL
-// ];
-
 const allowedOrigins = [
   'http://localhost:5173',
-  'http://10.10.48.73:5173',  // 💡 Your specific Wi-Fi IP
-  'http://172.30.144.1:5173', // 💡 Your other network adapter
   process.env.FRONTEND_URL
 ];
 
