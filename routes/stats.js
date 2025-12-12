@@ -16,14 +16,12 @@ router.get('/stats', authenticateToken, authorizeAdmin, async (req, res) => {
 
     try {
         // 1. Calculate Total Revenue (Sum of all orders)
-        // COALESCE(..., 0) ensures we return 0 instead of null if table is empty
         const revenueQuery = `SELECT COALESCE(SUM(total_amount), 0) AS total_revenue FROM orders`;
         
         // 2. Count Total Orders
         const ordersQuery = `SELECT COUNT(*) AS total_orders FROM orders`;
         
         // 3. Find Top Selling Product
-        // Joins order_items with products, sums quantity, and picks the top 1
         const topProductQuery = `
             SELECT p.name, SUM(oi.quantity) as total_sold 
             FROM order_items oi 
@@ -58,7 +56,6 @@ router.get('/stats/branches', authenticateToken, authorizeAdmin, async (req, res
     const pool = req.app.locals.pool;
 
     try {
-        // This query joins Orders with Staff (Branches) and groups the results
         const query = `
             SELECT 
                 u.name AS branch_name, 
@@ -66,7 +63,7 @@ router.get('/stats/branches', authenticateToken, authorizeAdmin, async (req, res
                 COALESCE(SUM(o.total_amount), 0) AS total_revenue
             FROM staff_users u
             LEFT JOIN orders o ON u.user_id = o.user_id
-            WHERE u.role != 'admin'  -- We don't want to compare the Admin account
+            WHERE u.role != 'admin'  
             GROUP BY u.user_id, u.name
             ORDER BY total_revenue DESC;
         `;
@@ -91,11 +88,12 @@ router.get('/stats/sales-report', authenticateToken, authorizeAdmin, async (req,
 
         // 1. Determine Date Range
         if (period === 'today') {
-            dateFilter = `AND o.created_at >= CURRENT_DATE`;
+            // 💡 FIX: Changed 'created_at' to 'order_date'
+            dateFilter = `AND o.order_date >= CURRENT_DATE`;
         } else if (period === 'week') {
-            dateFilter = `AND o.created_at >= NOW() - INTERVAL '1 WEEK'`;
+            dateFilter = `AND o.order_date >= NOW() - INTERVAL '1 WEEK'`;
         } else if (period === 'month') {
-            dateFilter = `AND o.created_at >= NOW() - INTERVAL '1 MONTH'`;
+            dateFilter = `AND o.order_date >= NOW() - INTERVAL '1 MONTH'`;
         }
 
         // 2. Determine Branch Filter
@@ -107,12 +105,12 @@ router.get('/stats/sales-report', authenticateToken, authorizeAdmin, async (req,
         }
 
         // 3. Query: Join Orders -> Items -> Products
-        // We group by product name to see total quantity sold per item
+        // 💡 FIX: Changed 'oi.price' to 'p.price' because price is in the products table
         const query = `
             SELECT 
                 p.name as product_name,
                 SUM(oi.quantity) as total_quantity,
-                SUM(oi.price * oi.quantity) as total_revenue
+                SUM(p.price * oi.quantity) as total_revenue
             FROM order_items oi
             JOIN orders o ON oi.order_id = o.order_id
             JOIN products p ON oi.product_id = p.product_id

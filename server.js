@@ -56,7 +56,7 @@ const statsRoutes = require('./routes/stats');
 const branchesRoutes = require('./routes/branches');
 const uploadRoutes = require('./routes/upload');
 const categoriesRouter = require('./routes/categories');
-const { router: authRoutes, setupDefaultUser } = require('./routes/auth'); 
+const { router: authRoutes } = require('./routes/auth'); 
 
 app.use('/api', menuRoutes);
 app.use('/api', orderRoutes);
@@ -75,8 +75,6 @@ app.get('/', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`🚀 Server listening on port ${PORT}`);
-  // 💡 Call setup function AFTER pool initialization, passing the pool object
-  setupDefaultUser(pool);
 });
 
 module.exports = { pool };

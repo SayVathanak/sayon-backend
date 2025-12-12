@@ -1,4 +1,3 @@
-// sayon-backend/routes/products.js
 const express = require('express');
 const router = express.Router();
 const authenticateToken = require('../middleware/auth');
@@ -34,38 +33,36 @@ router.get('/products', authenticateToken, async (req, res) => {
 router.post('/products', authenticateToken, authorizeAdmin, async (req, res) => {
     const pool = req.app.locals.pool;
 
-    // 💡 FIX: Destructure ALL fields, including cost_price and stock_quantity
     const {
         category_id,
         name,
-        description,
         price,
         cost_price,
-        stock_quantity,
         is_available,
         image_url,
         options
     } = req.body;
 
     try {
+        // 1. The SQL Command (7 Columns)
         const query = `
-            INSERT INTO products 
-            (category_id, name, description, price, cost_price, stock_quantity, is_available, image_url, options)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
-            RETURNING *;
+            INSERT INTO products (category_id, name, price, cost_price, image_url, is_available, options) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7) 
+            RETURNING *
         `;
 
-        const result = await pool.query(query, [
+        // 2. The Values Array (Must match the SQL order exactly)
+        const values = [
             category_id,
             name,
-            description || '',
             price,
-            cost_price || 0.00,     // Default to 0 if missing
-            stock_quantity || 0,    // Default to 0 if missing
-            is_available ?? true,   // Default to true (using ?? handles 'false' correctly)
-            image_url || null,
-            JSON.stringify(options || []) // Ensure options is JSON
-        ]);
+            cost_price || 0.00,
+            image_url || null,     // Matches $5 (image_url)
+            is_available ?? true,  // Matches $6 (is_available)
+            JSON.stringify(options || []) // Matches $7 (options)
+        ];
+
+        const result = await pool.query(query, values);
 
         res.status(201).json(result.rows[0]);
 
@@ -76,15 +73,14 @@ router.post('/products', authenticateToken, authorizeAdmin, async (req, res) => 
 });
 
 // 3. UPDATE PRODUCT (Admin Only)
-// 3. UPDATE PRODUCT (Admin Only) - REVISED FOR IMAGE DELETION
 router.patch('/products/:id', authenticateToken, authorizeAdmin, async (req, res) => {
     const pool = req.app.locals.pool;
     const id = req.params.id;
 
-    // Get fields from body
+    // 💡 REMOVED: stock_quantity
     const {
         category_id, name, description, price, cost_price, 
-        stock_quantity, is_available, image_url, options
+        is_available, image_url, options
     } = req.body;
 
     try {
@@ -106,10 +102,10 @@ router.patch('/products/:id', authenticateToken, authorizeAdmin, async (req, res
         addField('description', description);
         addField('price', price);
         addField('cost_price', cost_price);
-        addField('stock_quantity', stock_quantity);
+        // 💡 REMOVED: addField('stock_quantity', stock_quantity);
         addField('is_available', is_available);
         
-        // 💡 FIX: This now allows sending 'null' or empty string to clear the image
+        // Handle Image clearing
         if (image_url !== undefined) {
              fields.push(`image_url = $${index++}`);
              values.push(image_url === '' ? null : image_url);
@@ -154,24 +150,18 @@ router.delete('/products/:id', authenticateToken, authorizeAdmin, async (req, re
     const { id } = req.params;
 
     try {
-        // First delete related order_items to avoid Foreign Key constraint errors
-        // (Optional: Depends on if you want to keep sales history. 
-        //  Better practice is to just set is_available = false instead of delete)
-        // For now, we allow delete but handle the constraint:
-
         // Check if product is used in orders
         const checkQuery = 'SELECT 1 FROM order_items WHERE product_id = $1 LIMIT 1';
         const checkRes = await pool.query(checkQuery, [id]);
 
         if (checkRes.rowCount > 0) {
-            // If sold before, don't actually delete it, just hide it
-            // This prevents breaking your sales history reports
+            // Soft delete (hide) if it has sales history
             const softDeleteQuery = 'UPDATE products SET is_available = false WHERE product_id = $1';
             await pool.query(softDeleteQuery, [id]);
             return res.json({ message: 'Product has sales history. It was hidden instead of deleted.' });
         }
 
-        // If never sold, safe to delete
+        // Safe to delete if never sold
         const deleteQuery = 'DELETE FROM products WHERE product_id = $1';
         const result = await pool.query(deleteQuery, [id]);
 

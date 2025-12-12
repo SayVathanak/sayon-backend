@@ -6,20 +6,6 @@ const router = express.Router();
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
-// Helper to setup a default user for testing
-async function setupDefaultUser(pool) {
-    // This function only runs once when the server starts
-    const password = 'pos-secure-password';
-    // NOTE: You should ensure you have run the SQL to set the role for 'cashier1' to 'admin' for testing the admin dashboard.
-    const hashedPassword = await bcrypt.hash(password, 10);
-    
-    // Insert with a default role of 'cashier'
-    const query = 'INSERT INTO staff_users (username, password_hash, name, role) VALUES ($1, $2, $3, $4) ON CONFLICT (username) DO NOTHING';
-    await pool.query(query, ['cashier1', hashedPassword, 'Store Cashier', 'cashier']);
-    console.log('Default user "cashier1" setup complete.');
-}
-
-
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
     const { username, password } = req.body;
@@ -56,5 +42,4 @@ router.post('/login', async (req, res) => {
 
 module.exports = { 
     router, // Export the router
-    setupDefaultUser // Export the setup function
 };
