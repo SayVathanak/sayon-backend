@@ -80,4 +80,56 @@ router.get('/stats/branches', authenticateToken, authorizeAdmin, async (req, res
     }
 });
 
+router.get('/stats/sales-report', authenticateToken, authorizeAdmin, async (req, res) => {
+    const pool = req.app.locals.pool;
+    const { period, branch_id } = req.query;
+
+    try {
+        let dateFilter = '';
+        const params = [];
+        let paramIndex = 1;
+
+        // 1. Determine Date Range
+        if (period === 'today') {
+            dateFilter = `AND o.created_at >= CURRENT_DATE`;
+        } else if (period === 'week') {
+            dateFilter = `AND o.created_at >= NOW() - INTERVAL '1 WEEK'`;
+        } else if (period === 'month') {
+            dateFilter = `AND o.created_at >= NOW() - INTERVAL '1 MONTH'`;
+        }
+
+        // 2. Determine Branch Filter
+        let branchFilter = '';
+        if (branch_id && branch_id !== 'all') {
+            branchFilter = `AND o.user_id = $${paramIndex}`;
+            params.push(branch_id);
+            paramIndex++;
+        }
+
+        // 3. Query: Join Orders -> Items -> Products
+        // We group by product name to see total quantity sold per item
+        const query = `
+            SELECT 
+                p.name as product_name,
+                SUM(oi.quantity) as total_quantity,
+                SUM(oi.price * oi.quantity) as total_revenue
+            FROM order_items oi
+            JOIN orders o ON oi.order_id = o.order_id
+            JOIN products p ON oi.product_id = p.product_id
+            WHERE 1=1 
+            ${dateFilter}
+            ${branchFilter}
+            GROUP BY p.name
+            ORDER BY total_quantity DESC
+        `;
+
+        const { rows } = await pool.query(query, params);
+        res.json(rows);
+
+    } catch (error) {
+        console.error('Error fetching sales report:', error);
+        res.status(500).json({ error: 'Failed to load sales report.' });
+    }
+});
+
 module.exports = router;
