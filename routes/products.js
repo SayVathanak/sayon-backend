@@ -76,51 +76,65 @@ router.post('/products', authenticateToken, authorizeAdmin, async (req, res) => 
 });
 
 // 3. UPDATE PRODUCT (Admin Only)
+// 3. UPDATE PRODUCT (Admin Only) - REVISED FOR IMAGE DELETION
 router.patch('/products/:id', authenticateToken, authorizeAdmin, async (req, res) => {
     const pool = req.app.locals.pool;
     const id = req.params.id;
 
-    // 💡 FIX: Destructure here too
+    // Get fields from body
     const {
-        category_id,
-        name,
-        description,
-        price,
-        cost_price,
-        stock_quantity,
-        is_available,
-        image_url,
-        options
+        category_id, name, description, price, cost_price, 
+        stock_quantity, is_available, image_url, options
     } = req.body;
 
     try {
+        // Build dynamic query
+        let fields = [];
+        let values = [];
+        let index = 1;
+
+        // Helper to push fields if they exist in the request
+        const addField = (colName, value) => {
+            if (value !== undefined) { // Check undefined, allow null
+                fields.push(`${colName} = $${index++}`);
+                values.push(value);
+            }
+        };
+
+        addField('category_id', category_id);
+        addField('name', name);
+        addField('description', description);
+        addField('price', price);
+        addField('cost_price', cost_price);
+        addField('stock_quantity', stock_quantity);
+        addField('is_available', is_available);
+        
+        // 💡 FIX: This now allows sending 'null' or empty string to clear the image
+        if (image_url !== undefined) {
+             fields.push(`image_url = $${index++}`);
+             values.push(image_url === '' ? null : image_url);
+        }
+
+        if (options !== undefined) {
+            fields.push(`options = $${index++}`);
+            values.push(JSON.stringify(options));
+        }
+
+        if (fields.length === 0) {
+            return res.status(400).json({ message: 'No fields to update.' });
+        }
+
+        // Add ID as the last parameter
+        values.push(id);
+        
         const query = `
-            UPDATE products SET 
-                category_id = COALESCE($1, category_id),
-                name = COALESCE($2, name),
-                description = COALESCE($3, description),
-                price = COALESCE($4, price),
-                cost_price = COALESCE($5, cost_price),
-                stock_quantity = COALESCE($6, stock_quantity),
-                is_available = COALESCE($7, is_available),
-                image_url = COALESCE($8, image_url),
-                options = COALESCE($9, options)
-            WHERE product_id = $10
+            UPDATE products 
+            SET ${fields.join(', ')}
+            WHERE product_id = $${index}
             RETURNING *;
         `;
 
-        const result = await pool.query(query, [
-            category_id,
-            name,
-            description,
-            price,
-            cost_price,
-            stock_quantity,
-            is_available,
-            image_url,
-            options ? JSON.stringify(options) : null, // Handle JSON conversion
-            id
-        ]);
+        const result = await pool.query(query, values);
 
         if (result.rows.length === 0) {
             return res.status(404).json({ message: 'Product not found.' });

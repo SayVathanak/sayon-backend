@@ -55,6 +55,7 @@ const productsRoutes = require('./routes/products');
 const statsRoutes = require('./routes/stats');
 const branchesRoutes = require('./routes/branches');
 const uploadRoutes = require('./routes/upload');
+const categoriesRouter = require('./routes/categories');
 const { router: authRoutes, setupDefaultUser } = require('./routes/auth'); 
 
 app.use('/api', menuRoutes);
@@ -63,6 +64,7 @@ app.use('/api', productsRoutes);
 app.use('/api', statsRoutes);
 app.use('/api', branchesRoutes);
 app.use('/api', uploadRoutes);
+app.use('/api', categoriesRouter);
 app.use('/api/auth', authRoutes);
 
 
