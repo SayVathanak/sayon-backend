@@ -28,33 +28,35 @@ pool.query('SELECT NOW()')
 
 // --- 2. Middleware setup (Secure CORS) ---
 const allowedOrigins = [
-  'http://localhost:5173',
-  process.env.FRONTEND_URL
+  'http://localhost:5173', // Vite dev
+  'http://localhost:4173', // Vite preview
+  process.env.FRONTEND_URL // production
 ];
+
 
 const corsOptions = {
   origin: (origin, callback) => {
-    // 1. Allow requests with no origin (like mobile apps or Postman)
     if (!origin) return callback(null, true);
-    
-    // 2. Allow explicitly defined origins (localhost, production)
-    if (allowedOrigins.includes(origin)) return callback(null, true);
 
-    // 3. ✅ FIX: Allow local network IPs (e.g., 192.168.1.50) for testing on tablets
-    // This regex matches typical local IP ranges
-    const isLocalNetwork = /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}:5173$/.test(origin);
-    
-    if (isLocalNetwork) {
-        return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
     }
 
-    callback(new Error('Not allowed by CORS'));
+    const isLocalNetwork =
+      /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}:(5173|4173)$/.test(origin);
+
+    if (isLocalNetwork) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`CORS blocked: ${origin}`));
   },
-  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   credentials: true
 };
 
 app.use(cors(corsOptions));
+
 app.use(express.json()); // To parse JSON bodies
 
 
