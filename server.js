@@ -34,11 +34,21 @@ const allowedOrigins = [
 
 const corsOptions = {
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
+    // 1. Allow requests with no origin (like mobile apps or Postman)
+    if (!origin) return callback(null, true);
+    
+    // 2. Allow explicitly defined origins (localhost, production)
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+
+    // 3. ✅ FIX: Allow local network IPs (e.g., 192.168.1.50) for testing on tablets
+    // This regex matches typical local IP ranges
+    const isLocalNetwork = /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}:5173$/.test(origin);
+    
+    if (isLocalNetwork) {
+        return callback(null, true);
     }
+
+    callback(new Error('Not allowed by CORS'));
   },
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
   credentials: true
